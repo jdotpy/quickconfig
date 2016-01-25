@@ -23,10 +23,10 @@ Coming soon.
  
 ## Usage
 
-from quickconfig import Configuration
+	from quickconfig import Configuration
 
-config = Configuration(Configuration.Env('MYCONFIG'), '/etc/myconfig.json', '~/etc/.myconfig')
-port = config.get('server.port', 25)
+	config = Configuration(Configuration.Env('MYCONFIG'), '/etc/myconfig.json', '~/etc/.myconfig')
+	port = config.get('server.port', 25)
 
 ## How to test the software
  
