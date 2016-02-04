@@ -26,8 +26,45 @@ class CommandArgument():
         args, _remaining = parser.parse_known_args(self.source)
         self.path = getattr(args, key, None)
 
-class SettingNotFound(KeyError):
+class ExtractionFailed(KeyError):
     pass
+
+class Extractor():
+    def __init__(self, *sources, **kwargs):
+        self.sources = sources
+        self.delimiter = kwargs.pop('delimiter', '.')
+
+    def extract(self, path, default=None):
+        if isinstance(path, (list, tuple)):
+            attrs = path
+        else:
+            attrs = path.split(self.delimiter)
+
+        for source in reversed(self.sources):
+            value = source
+            try:
+                for attr in attrs:
+                    if isinstance(value, (list, tuple)):
+                        try:
+                            attr = int(attr)
+                        except:
+                            raise ExtractionFailed()
+                    try:
+                        value = value.__getitem__(attr)
+                    except (KeyError, IndexError, ValueError, AttributeError):
+                        raise ExtractionFailed()
+                return value
+            except ExtractionFailed:
+                continue
+        if isinstance(default, BaseException):
+            raise default
+        elif type(default) == type and issubclass(default, BaseException):
+            raise default('path not found: ' + '.'.join(attrs))
+        else:
+            return default
+
+def extract(sources, path, default=None, **options):
+    return Extractor(sources, **options).extract(path, default=default)
 
 class Configuration():
     Env = EnvironmentVariable
@@ -40,27 +77,52 @@ class Configuration():
             self.load_source(source)
 
     def load_source(self, path, destination='', encoding='utf-8', replace=False):
-        origin = path
-        if isinstance(path, (self.Env, self.Arg)):
-            path = path.path
-        ext = self._get_file_type(path)
-        contents = self._get_file_contents(path, encoding)
-        data, message = self._parse_contents(contents, ext)
-        loaded = data is not None
-        source_info = {
-            'origin': origin,
-            'location': path,
-            'type': ext,
-            'contents': contents,
-            'loaded': loaded,
-            'message': message,
-            'data': data,
-            'destination': destination
-        }
-        if '--configdebug' in sys.argv:
-            print 'ConfigTest. Added the following config source:'
-            pprint(source_info)    
+        if isinstance(path, dict):
+            source_info = {
+                'origin': path,
+                'location': 'Dynamic Data Dictionary',
+                'type': None,
+                'contents': None,
+                'loaded': True,
+                'message': 'Success',
+                'data': path,
+                'destination': destination
+            }
+        else:
+            origin = path
+            if isinstance(path, (self.Env, self.Arg)):
+                path = path.path
+            
+            ext = self._get_file_type(path)
+            contents = self._get_file_contents(path, encoding)
+            data, message = self._parse_contents(contents, ext)
+            loaded = data is not None
+            source_info = {
+                'origin': origin,
+                'location': path,
+                'type': ext,
+                'contents': contents,
+                'loaded': loaded,
+                'message': message,
+                'data': data,
+                'destination': destination
+            }
+            if '--configdebug' in sys.argv:
+                print 'ConfigTest. Added the following config source:'
+                pprint(source_info)    
         self.sources.append(source_info)
+        self._create_extractor()
+
+    def _create_extractor(self):
+        all_source_structs = []
+        for source in self.sources:
+            destination = source['destination']
+            if destination:
+                source_data = {destination: source['data']}
+            else:
+                source_data = source['data']
+            all_source_structs.append(source_data)
+        self.extractor = Extractor(*all_source_structs)
 
     def _parse_contents(self, contents, file_type):
         if contents is None:
@@ -92,7 +154,7 @@ class Configuration():
             raise ValueError('Invalid config extension: ' + file_type)
 
     def _get_file_type(self, path):
-        if path is None:
+        if path is None or not isinstance(path, basestring):
             return None
         path, ext = os.path.splitext(path)
         ext = ext[1:] # Remove leading dot
@@ -108,28 +170,5 @@ class Configuration():
         except IOError:
             return None
 
-    def get(self, path, default=None, delimiter='.'):
-        if isinstance(path, basestring):
-            attrs = path.split(delimiter)
-        else:
-            attrs = path
-        for source in reversed(self.sources):
-            try:
-                return self.get_from_source(attrs, source['data'])
-            except SettingNotFound:
-                continue
-        return default
-
-    def get_from_source(self, attrs, source_data):
-        value = source_data
-        for attr in attrs:
-            if isinstance(value, list):
-                try:
-                    attr = int(attr)
-                except:
-                    raise SettingNotFound()
-            try:
-                value = value.__getitem__(attr)
-            except (KeyError, IndexError, ValueError, AttributeError):
-                raise SettingNotFound()
-        return value
+    def get(self, *args, **kwargs):
+        return self.extractor.extract(*args, **kwargs)
