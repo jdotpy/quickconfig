@@ -1,7 +1,10 @@
 from unittest import TestCase
 import os
-import mock
 import copy
+try:
+    import mock
+except ImportError:
+    from unittest import mock
 
 from quickconfig import Configuration, ExtractionFailed, Extractor, extract
 

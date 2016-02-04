@@ -3,9 +3,17 @@ import os
 import re
 import argparse
 from pprint import pprint
-import ConfigParser
+try:
+    # Python 3
+    from configparser import ConfigParser
+    from io import StringIO
+    base_string = str
+except ImportError:
+    # Python 2
+    from ConfigParser import ConfigParser
+    from StringIO import StringIO
+    base_string = basestring
 
-import StringIO
 import sys
 
 try:
@@ -108,7 +116,7 @@ class Configuration():
                 'destination': destination
             }
             if '--configdebug' in sys.argv:
-                print 'ConfigTest. Added the following config source:'
+                pprint('ConfigTest. Added the following config source:')
                 pprint(source_info)    
         self.sources.append(source_info)
         self._create_extractor()
@@ -141,20 +149,23 @@ class Configuration():
                 return None, str(e)
         elif file_type == 'ini':
             try:
-                buf = StringIO.StringIO(contents)
-                config = ConfigParser.ConfigParser()
-                config.readfp(buf)
+                buf = StringIO(contents)
+                config = ConfigParser()
+                if hasattr(config, 'read_file'):
+                    config.read_file(buf)
+                else:
+                    config.readfp(buf)
                 data = {'defaults': dict(config.defaults())}
                 for section in config.sections():
                     data[section] = dict(config.items(section))
                 return data, 'Success'
-            except Exception:
+            except Exception as e:
                 return None, str(e)
         else:
             raise ValueError('Invalid config extension: ' + file_type)
 
     def _get_file_type(self, path):
-        if path is None or not isinstance(path, basestring):
+        if path is None or not isinstance(path, base_string):
             return None
         path, ext = os.path.splitext(path)
         ext = ext[1:] # Remove leading dot
