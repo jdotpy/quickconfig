@@ -217,3 +217,14 @@ class TestLoadSources(TestCase):
         conf = Configuration()
         conf.load_source(test_structure)
         self.assertEqual(list(conf.extractor.sources), [test_structure])
+
+class FunctionalTests(TestCase):
+    """ Mostly functional ;) """
+
+    def test_basic(self):
+        with mock.patch.object(Configuration, '_get_file_contents') as mock_get_contents:
+            mock_get_contents.return_value = '{"a": "first file"}'
+            conf = Configuration('/tmp/file1.json')
+            mock_get_contents.return_value = 'a: "second file"'
+            conf.load_source('/tmp/yaml.yaml')
+            self.assertEqual(conf.get('a'), 'second file')
