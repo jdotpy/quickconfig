@@ -1,3 +1,4 @@
+from io import open
 import json
 import os 
 import re
@@ -120,6 +121,9 @@ class Configuration():
                 pprint(source_info)    
         self.sources.append(source_info)
         self._create_extractor()
+        self.loaded_sources = [source for source in self.sources if source['loaded']]
+        self.any_loaded = len(self.loaded_sources) > 0 
+        self.loaded = len(self.loaded_sources)
 
     def _create_extractor(self):
         all_source_structs = []
@@ -176,8 +180,10 @@ class Configuration():
             return None
         path = os.path.expanduser(path)
         try:
-            with open(path, 'r') as f:
-                return f.read().decode('utf-8')
+            f = open(path, encoding=encoding)
+            contents = f.read()
+            f.close()
+            return contents
         except IOError:
             return None
 
