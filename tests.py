@@ -6,7 +6,7 @@ try:
 except ImportError:
     from unittest import mock
 
-from quickconfig import Configuration, ExtractionFailed, Extractor, extract
+from quickconfig import Configuration, ExtractionFailed, Extractor, extract, MissingConfigFileError, InvalidConfigError, RequiredConfigurationError
 
 class TestExtractor(TestCase):
     TEST_STRUCTURE = {
@@ -185,10 +185,10 @@ class TestInternal(TestCase):
             self.assertEqual(value, None)
 
 class TestLoadSources(TestCase):
+    test_origin = '/tmp/test/path.json'
     def test_load_source(self):
         conf = Configuration()
 
-        test_origin = '/tmp/test/path.json'
         test_file_type = 'json'
         test_contents = 'test contents'
         test_parsed = {'foo': 'bar'}
@@ -197,15 +197,39 @@ class TestLoadSources(TestCase):
         conf._get_file_contents = mock.Mock(return_value=test_contents)
         conf._parse_contents = mock.Mock(return_value=(test_parsed, None))
 
-        conf.load_source(test_origin)
+        conf.load_source(self.test_origin)
 
         self.assertEqual(len(conf.sources), 1)
         built_source = conf.sources[0]
-        self.assertEqual(built_source['origin'], test_origin)
-        self.assertEqual(built_source['location'], test_origin)
+        self.assertEqual(built_source['origin'], self.test_origin)
+        self.assertEqual(built_source['location'], self.test_origin)
         self.assertEqual(built_source['type'], test_file_type)
         self.assertEqual(built_source['contents'], test_contents)
         self.assertEqual(built_source['data'], test_parsed)
+
+    def test_missing_config_file(self):
+        conf = Configuration(silent_on_missing=False, silent_on_invalid=False)
+        conf._get_file_contents = mock.Mock(return_value=None)
+        with self.assertRaises(MissingConfigFileError):
+            conf.load_source(self.test_origin)
+
+    def test_config_file_exists(self):
+        conf = Configuration(silent_on_missing=True, silent_on_invalid=True)
+        conf._get_file_contents = mock.Mock(return_value=None)
+        conf.load_source(self.test_origin)
+        self.assertEqual(len(conf.sources), 1)
+
+    def test_invalid_config_file(self):
+        conf = Configuration(silent_on_missing=False, silent_on_invalid=False)
+        conf._get_file_contents = mock.Mock(return_value='{invalid,,,:json')
+        with self.assertRaises(InvalidConfigError):
+            conf.load_source(self.test_origin)
+
+    def test_required_num_sources(self):
+        with mock.patch.object(Configuration, '_get_file_contents') as mock_get_contents:
+            mock_get_contents.return_value = '{"a": "first file"}'
+            with self.assertRaises(RequiredConfigurationError):
+                conf = Configuration('foobar.json', require=2)
 
     def test_destination(self):
         test_structure = {'a': 1, 'b': 2}

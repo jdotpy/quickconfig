@@ -1,8 +1,9 @@
 from io import open
+import argparse
 import json
+import sys
 import os 
 import re
-import argparse
 from pprint import pprint
 try:
     # Python 3
@@ -14,8 +15,6 @@ except ImportError:
     from ConfigParser import ConfigParser
     from StringIO import StringIO
     base_string = basestring
-
-import sys
 
 try:
     import yaml
@@ -34,6 +33,15 @@ class CommandArgument():
         parser.add_argument('--' + key, help='QuickConfig Configuration File', default=None)
         args, _remaining = parser.parse_known_args(self.source)
         self.path = getattr(args, key, None)
+
+class MissingConfigFileError(IOError):
+    pass
+
+class InvalidConfigError(ValueError):
+    pass
+
+class RequiredConfigurationError(ValueError):
+    pass
 
 class ExtractionFailed(KeyError):
     pass
@@ -81,9 +89,29 @@ class Configuration():
 
     def __init__(self, *sources, **options):
         self.sources = []
+        self.loaded_sources = []
         self.replace = options.get('replace', False)
+        self.require = options.get('require', 0)
+        self.silent_on_missing = options.get('silent_on_missing', True)
+        self.silent_on_invalid = options.get('silent_on_invalid', False)
         for source in sources:
             self.load_source(source)
+
+        # Support boolean require values that imply 1
+        if not isinstance(self.require, int):
+            if self.require:
+                self.require = 1
+            else:
+                self.require = 0
+        if self.require > len(self.loaded_sources):
+            if self.require == 1:
+                message = 'At least one configuration source is required.'
+            else:
+                message = 'At least %d configuration sources are required but only %d are found.' % (self.require, len(self.loaded_sources))
+            print('\nConfiguration sources:')
+            for source in self.sources:
+                print('\t' + source['origin'])
+            raise RequiredConfigurationError(message)
 
     def load_source(self, path, destination='', encoding='utf-8', replace=False):
         if isinstance(path, dict):
@@ -104,7 +132,17 @@ class Configuration():
             
             ext = self._get_file_type(path)
             contents = self._get_file_contents(path, encoding)
-            data, message = self._parse_contents(contents, ext)
+            if contents is None and not self.silent_on_missing:
+                raise MissingConfigFileError('Missing configuration file: ' + origin)
+
+            if contents is None:
+                data = None
+                message = 'No file contents to parse'
+            else:
+                data, message = self._parse_contents(contents, ext)
+                if data is None and not self.silent_on_invalid:
+                    raise InvalidConfigError(origin + ' has invalid configuration: ' + message)
+
             loaded = data is not None
             source_info = {
                 'origin': origin,
