@@ -11,7 +11,7 @@ to access them with error handling.
  
 ## Dependencies
 
--Python 2.7
+-Python 2.7+ or 3.4+
  
 ## Installation
 
@@ -39,6 +39,8 @@ Coming soon.
 	config = Configuration('/etc/myconfig.json', '/etc/myconfig-2.json', require=2)
 
 ## How to test the software
+
+Tests should be run with python 3 or with the additional mock package.
  
 * Clone/download project.
 * Create new virtualenv
@@ -48,7 +50,7 @@ Coming soon.
  
 ## Known issues
 
-* No support for python 3 :( 
+* None
  
 ## Getting help
 
