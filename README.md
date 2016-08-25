@@ -24,6 +24,20 @@ Coming soon.
 	config = Configuration(Configuration.Env('MYCONFIG'), '/etc/myconfig.json', '~/etc/.myconfig')
 	port = config.get('server.port', 25)
 
+	# You can control when/if the configuration raises an exception
+
+	# To raise an exception when any configuration file is missing
+	config = Configuration('/etc/myconfig.json', silent_on_missing=False)
+
+	# To silence exceptions for invalid configuration files (problems parsing)
+	config = Configuration('/etc/myconfig.json', silent_on_invalid=True)
+
+	# To require at least one configuration source be loaded succesfully
+	config = Configuration('/etc/myconfig.json', '/etc/myconfig-2.json', require=True)
+
+	# To require a minimum number of configuration sources be loaded
+	config = Configuration('/etc/myconfig.json', '/etc/myconfig-2.json', require=2)
+
 ## How to test the software
  
 * Clone/download project.
